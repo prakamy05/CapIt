@@ -1,0 +1,32 @@
+body {
+  font-family: Inter, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 3rem;
+  background: #0f172a;
+  color: #f8fafc;
+}
+input {
+  padding: 10px;
+  width: 60%;
+  margin-top: 1rem;
+  border-radius: 8px;
+  border: none;
+}
+button {
+  margin-top: 1rem;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+pre {
+  width: 60%;
+  background: #1e293b;
+  padding: 1rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
