@@ -5,7 +5,7 @@ async function summarize() {
   status.innerText = "⏳ Processing...";
   result.innerText = "";
 
-  const res = await fetch("https://your-backend.onrender.com/summarize", {
+  const res = await fetch("https://capit.onrender.com/summarize", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ url }),
