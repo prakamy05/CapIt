@@ -40,51 +40,61 @@ def summarize(req: VideoRequest):
     audio_path = f"/tmp/{vid_id}.mp3"
 
     try:
-        # 1️⃣ Download audio
+        print("STEP 1: Downloading audio...")
         subprocess.run([
-            "yt-dlp",
-            "--extract-audio",
-            "--audio-format", "mp3",
+            "yt-dlp", "--extract-audio", "--audio-format", "mp3",
             "--no-check-certificate",
-            "--cookies", "cookies.txt",
-            "-o", audio_path,
-            req.url
+            "-o", audio_path, req.url
         ], check=True)
+        print("✅ Audio downloaded at", audio_path)
 
-        # 2️⃣ Transcribe via Groq Whisper
-        try:
-            with open(audio_path, "rb") as f:
-                whisper_resp = requests.post(
-                    "https://api.groq.com/openai/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                    files={"file": f},
-                    data={"model": "whisper-large-v3"}
-                )
-            whisper_resp.raise_for_status()
-            transcript = whisper_resp.json().get("text", "")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
-
-        # 3️⃣ Summarize via Groq LLaMA
-        prompt = f"Summarize the following YouTube transcript:\n\n{transcript}"
-        try:
-            llm_resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+        # --- Transcription ---
+        print("STEP 2: Transcribing via Groq Whisper...")
+        with open(audio_path, "rb") as f:
+            whisper_resp = requests.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                json={
-                    "model": "llama-3.1-70b-versatile",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.5
-                }
+                files={"file": f},
+                data={"model": "whisper-large-v3"}
             )
-            llm_resp.raise_for_status()
-            summary = llm_resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Summarization failed: {str(e)}")
 
+        print("Transcription response code:", whisper_resp.status_code)
+        print("Transcription response text:", whisper_resp.text[:200])
+
+        whisper_resp.raise_for_status()
+        transcript = whisper_resp.json().get("text", "")
+        if not transcript:
+            raise Exception("Empty transcript returned.")
+
+        # --- Summarization ---
+        print("STEP 3: Summarizing via Groq LLaMA...")
+        llm_resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": "llama-3.1-70b-versatile",
+                "messages": [{"role": "user", "content": f"Summarize:\n{transcript}"}],
+                "temperature": 0.5
+            }
+        )
+
+        print("LLaMA response code:", llm_resp.status_code)
+        print("LLaMA response text:", llm_resp.text[:200])
+
+        llm_resp.raise_for_status()
+        data = llm_resp.json()
+        if "choices" not in data:
+            raise Exception(f"Unexpected response: {data}")
+
+        summary = data["choices"][0]["message"]["content"]
+        print("✅ Summary generated successfully")
         return {"summary": summary}
 
+    except Exception as e:
+        print("❌ ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
     finally:
-        # 4️⃣ Cleanup audio file
         if os.path.exists(audio_path):
             os.remove(audio_path)
+
