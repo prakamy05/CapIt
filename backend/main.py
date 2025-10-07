@@ -46,6 +46,7 @@ def summarize(req: VideoRequest):
             "--extract-audio",
             "--audio-format", "mp3",
             "--no-check-certificate",
+            "--cookies", "cookies.txt",
             "-o", audio_path,
             req.url
         ], check=True)
