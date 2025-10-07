@@ -73,6 +73,7 @@ def summarize(req: VideoRequest):
             result = subprocess.run(
                 [
                     "yt-dlp", "--extract-audio", "--audio-format", "mp3",
+                    "--cookies", "cookies.txt",
                     "-o", f"/tmp/audio_{timestamp}_{unique_id}.%(ext)s", req.url
                 ],
                 check=True,
