@@ -73,7 +73,7 @@ def summarize(req: VideoRequest):
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
             json={
-                "model": "llama-3.1-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": f"Summarize:\n{transcript}"}],
                 "temperature": 0.5
             }
