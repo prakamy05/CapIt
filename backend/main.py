@@ -44,6 +44,7 @@ def summarize(req: VideoRequest):
         subprocess.run([
             "yt-dlp", "--extract-audio", "--audio-format", "mp3",
             "--no-check-certificate",
+            "--cookies", "cookies.txt",
             "-o", audio_path, req.url
         ], check=True)
         print("✅ Audio downloaded at", audio_path)
