@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import subprocess, os, uuid, requests, time
+import textwrap
 
 # ----------------- Configuration -----------------
 app = FastAPI()
@@ -32,10 +33,35 @@ class VideoRequest(BaseModel):
 def root():
     return {"message": "YouTube Summarizer API running. POST to /summarize with {url}."}
 
+# ----------------- Helper functions -----------------
+def summarize_chunk(text_chunk):
+    """Summarize a chunk using LLaMA API."""
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": f"Summarize:\n{text_chunk}"}],
+                "temperature": 0.5
+            }
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if "choices" not in data or not data["choices"]:
+            raise Exception(f"Unexpected LLaMA response: {data}")
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        print("❌ Chunk summarization failed:", e)
+        return f"[Error summarizing chunk: {e}]"
+
+def chunk_text(text, max_chars=5000):
+    """Split text into chunks of max_chars length."""
+    return textwrap.wrap(text, max_chars)
+
 # ----------------- Summarize endpoint -----------------
 @app.post("/summarize")
 def summarize(req: VideoRequest):
-    # Unique filename convention: videoid_timestamp_uuid.mp3
     timestamp = int(time.time())
     unique_id = str(uuid.uuid4())
     audio_path = f"/tmp/audio_{timestamp}_{unique_id}.mp3"
@@ -76,32 +102,27 @@ def summarize(req: VideoRequest):
             transcript = whisper_resp.json().get("text", "")
             if not transcript:
                 raise Exception("Empty transcript returned from Whisper API.")
-            print("✅ Transcription completed")
+            print("✅ Transcription completed. Transcript length:", len(transcript))
         except Exception as e:
             print("❌ Transcription failed:", e)
             return {"error": f"Transcription failed: {e}"}
 
-        # --------- STEP 3: Summarization ---------
+        # --------- STEP 3: Summarization in batches ---------
         try:
-            print("STEP 3: Summarizing via Groq LLaMA...")
-            llm_resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": f"Summarize:\n{transcript}"}],
-                    "temperature": 0.5
-                }
-            )
+            print("STEP 3: Splitting transcript into chunks for summarization...")
+            chunks = chunk_text(transcript, max_chars=5000)
+            print(f"Transcript split into {len(chunks)} chunks")
 
-            llm_resp.raise_for_status()
-            data = llm_resp.json()
-            if "choices" not in data or not data["choices"]:
-                raise Exception(f"Unexpected response from LLaMA: {data}")
+            partial_summaries = []
+            for idx, chunk in enumerate(chunks, start=1):
+                print(f"Summarizing chunk {idx}/{len(chunks)}...")
+                summary = summarize_chunk(chunk)
+                partial_summaries.append(summary)
 
-            summary = data["choices"][0]["message"]["content"]
-            print("✅ Summary generated successfully")
-            return {"summary": summary}
+            # Concatenate partial summaries
+            final_summary = "\n\n".join(partial_summaries)
+            print("✅ Final summary generated successfully")
+            return {"summary": final_summary}
 
         except Exception as e:
             print("❌ Summarization failed:", e)
